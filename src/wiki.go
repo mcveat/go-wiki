@@ -4,23 +4,24 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"github.com/knieriem/markdown"
+	"html/template"
 	"io/ioutil"
 	"net/http"
-	"html/template"
-	"regexp"
-	"errors"
 	"os"
-	"bytes"
+	"regexp"
 )
 
 type Page struct {
 	Title string
-	Body []byte
+	Body  []byte
 }
 
 type HtmlPage struct {
 	Title string
-	Body template.HTML
+	Body  template.HTML
 }
 
 var (
@@ -50,8 +51,8 @@ func loadPage(title string) (*Page, error) {
 	return &Page{Title: title, Body: body}, nil
 }
 
-func renderTemplate(w http.ResponseWriter, tpl string, p *HtmlPage) {
-	err := templates.ExecuteTemplate(w, tpl + ".html", p)
+func renderTemplate(w http.ResponseWriter, tpl string, p interface{}) {
+	err := templates.ExecuteTemplate(w, tpl+".html", p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -63,11 +64,12 @@ func (p *Page) save() error {
 }
 
 func (p *Page) html() *HtmlPage {
+	m := markdown.NewParser(&markdown.Extensions{Smart: true})
 	buffer := bytes.NewBuffer(make([]byte, 0))
-	template.HTMLEscape(buffer, p.Body)
+	m.Markdown(bytes.NewBuffer(p.Body), markdown.ToHTML(buffer))
 	return &HtmlPage{
 		Title: p.Title,
-		Body: template.HTML(buffer.String()),
+		Body:  template.HTML(buffer.String()),
 	}
 }
 
@@ -79,7 +81,7 @@ func (p *HtmlPage) autoLink() *HtmlPage {
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := loadPage(title)
 	if err != nil {
-		http.Redirect(w, r, "/edit/" + title, http.StatusFound)
+		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
 		return
 	}
 	renderTemplate(w, "view", p.html().autoLink())
@@ -90,7 +92,7 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
 	if err != nil {
 		p = &Page{Title: title}
 	}
-	renderTemplate(w, "edit", p.html())
+	renderTemplate(w, "edit", p)
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -101,10 +103,10 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/view/" + title, http.StatusFound)
+	http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
-func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPath.FindStringSubmatch(r.URL.Path)
 		if m == nil {
