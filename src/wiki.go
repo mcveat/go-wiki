@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"github.com/knieriem/markdown"
 	"html/template"
 	"io/ioutil"
@@ -24,20 +23,15 @@ type HtmlPage struct {
 	Body  template.HTML
 }
 
-var (
-	templates = template.Must(template.ParseFiles("html/edit.html", "html/view.html"))
-	validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
-	innerLink = regexp.MustCompile("\\[([a-zA-Z0-9]+)\\]")
-)
-
-func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
-	m := validPath.FindStringSubmatch(r.URL.Path)
-	if m == nil {
-		http.NotFound(w, r)
-		return "", errors.New("Invalid Page Title")
-	}
-	return m[2], nil
+type Site struct {
+	Content template.HTML
 }
+
+var (
+	templates       = template.Must(template.ParseFiles("html/edit.html", "html/view.html", "html/main.html"))
+	validActionPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+	innerLink       = regexp.MustCompile("\\[([a-zA-Z0-9]+)\\]")
+)
 
 func getFileName(title string) string {
 	return "data/" + title + ".txt"
@@ -52,10 +46,23 @@ func loadPage(title string) (*Page, error) {
 }
 
 func renderTemplate(w http.ResponseWriter, tpl string, p interface{}) {
-	err := templates.ExecuteTemplate(w, tpl+".html", p)
+	part, err := renderPart(tpl, p)
+	if err != nil {
+		part = template.HTML("Failed to load ...")
+	}
+	err = templates.ExecuteTemplate(w, "main.html", Site{Content: part})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func renderPart(tpl string, p interface{}) (template.HTML, error) {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+	err := templates.ExecuteTemplate(buffer, tpl+".html", p)
+	if err != nil {
+		return template.HTML(""), err
+	}
+	return template.HTML(buffer.String()), nil
 }
 
 func (p *Page) save() error {
@@ -108,7 +115,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 
 func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPath.FindStringSubmatch(r.URL.Path)
+		m := validActionPath.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
 			return
@@ -125,6 +132,7 @@ func main() {
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("public"))))
 	http.HandleFunc("/", rootHandler)
 	http.ListenAndServe(":8080", nil)
 }
