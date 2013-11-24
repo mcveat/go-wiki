@@ -1,3 +1,29 @@
 #under-navbar {
-  margin-top: 45px;
+  margin-top: 55px;
+}
+
+h1.page-title {
+  margin-top: 0px;
+}
+h1.page-title small {
+  font-size: medium;
+}
+
+.markdown h1 {
+  font-size: 32px;
+}
+.markdown h2 {
+  font-size: 26px;
+}
+.markdown h3 {
+  font-size: 22px;
+}
+.markdown h4 {
+  font-size: 18px;
+}
+.markdown h5 {
+  font-size: 15px;
+}
+.markdown h6 {
+  font-size: 12px;
 }

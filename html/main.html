@@ -30,8 +30,16 @@
 
     <div id="under-navbar" class="container">
 
-      <div class="content"> 
-        {{.Content}}
+      <div class="row">
+        <div class="col-md-2">
+          <div class="list-group">
+            <a href="/view/FrontPage" class="list-group-item active">Front Page</a>
+          </div>
+        </div>
+
+        <div class="content col-md-10"> 
+          {{.Content}}
+        </div>
       </div>
 
       <hr>

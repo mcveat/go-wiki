@@ -1,5 +1,11 @@
-<h1>{{.Title}}</h1>
+<h1 class="page-title">{{.Title}}
+  <small>
+    [<a href="/edit/{{.Title}}">edit</a>]
+  </small>
+</h1>
 
-<p>[<a href="/edit/{{.Title}}">edit</a>]</p>
+<hr/>
 
-<div>{{.Body}}</div>
+<div class="markdown">
+  {{.Body}}
+</div>
