@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"errors"
 	"os"
+	"bytes"
 )
 
 type Page struct {
@@ -17,8 +18,16 @@ type Page struct {
 	Body []byte
 }
 
-var templates = template.Must(template.ParseFiles("html/edit.html", "html/view.html"))
-var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+type HtmlPage struct {
+	Title string
+	Body template.HTML
+}
+
+var (
+	templates = template.Must(template.ParseFiles("html/edit.html", "html/view.html"))
+	validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+	innerLink = regexp.MustCompile("\\[([a-zA-Z0-9]+)\\]")
+)
 
 func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
 	m := validPath.FindStringSubmatch(r.URL.Path)
@@ -41,7 +50,7 @@ func loadPage(title string) (*Page, error) {
 	return &Page{Title: title, Body: body}, nil
 }
 
-func renderTemplate(w http.ResponseWriter, tpl string, p *Page) {
+func renderTemplate(w http.ResponseWriter, tpl string, p *HtmlPage) {
 	err := templates.ExecuteTemplate(w, tpl + ".html", p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,13 +62,27 @@ func (p *Page) save() error {
 	return ioutil.WriteFile(getFileName(p.Title), p.Body, 0600)
 }
 
+func (p *Page) html() *HtmlPage {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+	template.HTMLEscape(buffer, p.Body)
+	return &HtmlPage{
+		Title: p.Title,
+		Body: template.HTML(buffer.String()),
+	}
+}
+
+func (p *HtmlPage) autoLink() *HtmlPage {
+	body := innerLink.ReplaceAllString(string(p.Body), "<a href=\"/view/$1\">$1</a>")
+	return &HtmlPage{Title: p.Title, Body: template.HTML(body)}
+}
+
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := loadPage(title)
 	if err != nil {
 		http.Redirect(w, r, "/edit/" + title, http.StatusFound)
 		return
 	}
-	renderTemplate(w, "view", p)
+	renderTemplate(w, "view", p.html().autoLink())
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -67,7 +90,7 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
 	if err != nil {
 		p = &Page{Title: title}
 	}
-	renderTemplate(w, "edit", p)
+	renderTemplate(w, "edit", p.html())
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
